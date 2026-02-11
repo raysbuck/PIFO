@@ -29,11 +29,13 @@ module Nexus_Macro_Bitset #(
     wire [3:0] l1_idx = i_bucket_idx[7:4];
     wire [3:0] l2_idx = i_bucket_idx[3:0];
 
+    integer i;
+
     // --- Write Logic ---
     always @(posedge i_clk or negedge i_arst_n) begin
         if (!i_arst_n) begin
             l1_bitmap <= 0;
-            for (integer i=0; i<L1_SIZE; i++) l2_bitmaps[i] <= 0;
+            for (i=0; i<L1_SIZE; i++) l2_bitmaps[i] <= 0;
         end else if (i_set_valid) begin
             l1_bitmap[l1_idx] <= 1'b1;
             l2_bitmaps[l1_idx][l2_idx] <= 1'b1;

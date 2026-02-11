@@ -54,11 +54,11 @@ module Nexus_Micro_Sorting #(
     always @(posedge i_clk or negedge i_arst_n) begin
         if (!i_arst_n) begin
             count <= 0;
-            for (i=0; i<ENTRIES; i++) registers[i] <= {PTW+MTW{1'b1}}; // Initialize with max priority
+            for (i=0; i<ENTRIES; i = i + 1) registers[i] <= {PTW+MTW{1'b1}}; // Initialize with max priority
         end else begin
             if (i_push && !o_full) begin
                 // Shift-and-Insert Logic
-                for (i=0; i<ENTRIES; i++) begin
+                for (i=0; i<ENTRIES; i = i + 1) begin
                     if (i == target_idx) begin
                         registers[i] <= i_push_data;
                     end else if (i > target_idx) begin
@@ -68,7 +68,7 @@ module Nexus_Micro_Sorting #(
                 count <= count + 1;
             end else if (i_pop && !o_empty) begin
                 // Shift-up Logic
-                for (i=0; i<ENTRIES-1; i++) begin
+                for (i=0; i<ENTRIES-1; i = i + 1) begin
                     registers[i] <= registers[i+1];
                 end
                 registers[ENTRIES-1] <= {PTW+MTW{1'b1}};

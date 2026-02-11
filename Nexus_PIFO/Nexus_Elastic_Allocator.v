@@ -34,7 +34,7 @@ module Nexus_Elastic_Allocator #(
     always @(posedge i_clk or negedge i_arst_n) begin
         if (!i_arst_n) begin
             // Initial linear mapping, which can be rebalanced later
-            for (i=0; i<BUCKETS; i++) begin
+            for (i=0; i<BUCKETS; i = i + 1) begin
                 pointer_table[i] <= i[ADW-1:0];
             end
         end else if (i_rebalance_trigger) begin

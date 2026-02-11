@@ -106,7 +106,7 @@ module Astra_PIFO #(
                         o_pop_data <= slots[min_val_idx][(MTW+PTW)-1:0];
                         // Replace slot with data from its child
                         slots[min_val_idx] <= {slots[min_val_idx][(CTW+MTW+PTW)-1:(MTW+PTW)] - 1'b1, 
-                                               i_pop_data[(min_val_idx+1)*(MTW+PTW)-1 : min_val_idx*(MTW+PTW)]};
+                                               i_pop_data[min_val_idx*(MTW+PTW) +: (MTW+PTW)]};
                         o_pop[min_val_idx] <= 1'b1;
                     end
                 end

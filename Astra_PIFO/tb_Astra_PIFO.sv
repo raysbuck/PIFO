@@ -42,12 +42,12 @@ module tb_Astra_PIFO;
     always #5 clk = ~clk;
 
     // Task: Push Data
-    task push(input [PTW-1:0] priority, input [MTW-1:0] meta);
+    task push(input [PTW-1:0] prio, input [MTW-1:0] meta);
         begin
             @(posedge clk);
             i_push = 1;
-            i_push_data = {meta, priority};
-            $display("[PUSH] Priority: %d, Meta: %h", priority, meta);
+            i_push_data = {meta, prio};
+            $display("[PUSH] Priority: %d, Meta: %h", prio, meta);
             @(posedge clk);
             i_push = 0;
         end
@@ -65,13 +65,13 @@ module tb_Astra_PIFO;
     endtask
 
     // Task: Concurrent Push and Pop
-    task push_pop(input [PTW-1:0] priority, input [MTW-1:0] meta);
+    task push_pop(input [PTW-1:0] prio, input [MTW-1:0] meta);
         begin
             @(posedge clk);
             i_push = 1;
             i_pop = 1;
-            i_push_data = {meta, priority};
-            $display("[CONC] PUSH Priority: %d | POP issued", priority);
+            i_push_data = {meta, prio};
+            $display("[CONC] PUSH Priority: %d | POP issued", prio);
             @(posedge clk);
             i_push = 0;
             i_pop = 0;

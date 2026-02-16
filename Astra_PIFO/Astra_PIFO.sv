@@ -31,14 +31,13 @@ module Astra_PIFO #(
 );
 
     // Node storage: 4 elements + 1 SEC (Smallest Element Cache)
-    // We treat the SEC as a "Lookahead" register to hide pop latency.
-    reg [(CTW+MTW+PTW)-1:0] slots [0:3];
+    reg [(CTW+MTW+PTW)-1:0] slot0, slot1, slot2, slot3;
     reg [(MTW+PTW)-1:0]     sec_data;
     reg                     sec_valid;
 
     // Internal Wires
-    wire [1:0] min_load_idx;
-    wire [1:0] min_val_idx;
+    reg [1:0] min_load_idx;
+    reg [1:0] min_val_idx;
     wire [(MTW+PTW)-1:0] incoming_data = i_push_data;
     
     // -------------------------------------------------------------------------
@@ -46,93 +45,160 @@ module Astra_PIFO #(
     // -------------------------------------------------------------------------
     
     // 1. Find sub-tree with minimum load (for Push balance)
-    assign min_load_idx = (slots[0][(CTW+MTW+PTW)-1:(MTW+PTW)] <= slots[1][(CTW+MTW+PTW)-1:(MTW+PTW)] &&
-                           slots[0][(CTW+MTW+PTW)-1:(MTW+PTW)] <= slots[2][(CTW+MTW+PTW)-1:(MTW+PTW)] &&
-                           slots[0][(CTW+MTW+PTW)-1:(MTW+PTW)] <= slots[3][(CTW+MTW+PTW)-1:(MTW+PTW)]) ? 2'b00 :
-                          (slots[1][(CTW+MTW+PTW)-1:(MTW+PTW)] <= slots[2][(CTW+MTW+PTW)-1:(MTW+PTW)] &&
-                           slots[1][(CTW+MTW+PTW)-1:(MTW+PTW)] <= slots[3][(CTW+MTW+PTW)-1:(MTW+PTW)]) ? 2'b01 :
-                          (slots[2][(CTW+MTW+PTW)-1:(MTW+PTW)] <= slots[3][(CTW+MTW+PTW)-1:(MTW+PTW)]) ? 2'b10 : 2'b11;
+    always_comb begin
+        if (slot0[(CTW+MTW+PTW)-1:(MTW+PTW)] <= slot1[(CTW+MTW+PTW)-1:(MTW+PTW)] &&
+            slot0[(CTW+MTW+PTW)-1:(MTW+PTW)] <= slot2[(CTW+MTW+PTW)-1:(MTW+PTW)] &&
+            slot0[(CTW+MTW+PTW)-1:(MTW+PTW)] <= slot3[(CTW+MTW+PTW)-1:(MTW+PTW)])
+            min_load_idx = 2'b00;
+        else if (slot1[(CTW+MTW+PTW)-1:(MTW+PTW)] <= slot2[(CTW+MTW+PTW)-1:(MTW+PTW)] &&
+                 slot1[(CTW+MTW+PTW)-1:(MTW+PTW)] <= slot3[(CTW+MTW+PTW)-1:(MTW+PTW)])
+            min_load_idx = 2'b01;
+        else if (slot2[(CTW+MTW+PTW)-1:(MTW+PTW)] <= slot3[(CTW+MTW+PTW)-1:(MTW+PTW)])
+            min_load_idx = 2'b10;
+        else
+            min_load_idx = 2'b11;
+    end
 
     // 2. Find slot with minimum value (for Pop)
-    assign min_val_idx = (slots[0][PTW-1:0] <= slots[1][PTW-1:0] &&
-                          slots[0][PTW-1:0] <= slots[2][PTW-1:0] &&
-                          slots[0][PTW-1:0] <= slots[3][PTW-1:0]) ? 2'b00 :
-                         (slots[1][PTW-1:0] <= slots[2][PTW-1:0] &&
-                          slots[1][PTW-1:0] <= slots[3][PTW-1:0]) ? 2'b01 :
-                         (slots[2][PTW-1:0] <= slots[3][PTW-1:0]) ? 2'b10 : 2'b11;
+    always_comb begin
+        if (slot0[PTW-1:0] <= slot1[PTW-1:0] &&
+            slot0[PTW-1:0] <= slot2[PTW-1:0] &&
+            slot0[PTW-1:0] <= slot3[PTW-1:0])
+            min_val_idx = 2'b00;
+        else if (slot1[PTW-1:0] <= slot2[PTW-1:0] &&
+                 slot1[PTW-1:0] <= slot3[PTW-1:0])
+            min_val_idx = 2'b01;
+        else if (slot2[PTW-1:0] <= slot3[PTW-1:0])
+            min_val_idx = 2'b10;
+        else
+            min_val_idx = 2'b11;
+    end
 
-    assign o_best_data = sec_valid ? ((sec_data[PTW-1:0] < slots[min_val_idx][PTW-1:0]) ? sec_data : slots[min_val_idx][(MTW+PTW)-1:0])
-                                   : slots[min_val_idx][(MTW+PTW)-1:0];
+    // Pre-select min slot data
+    reg [(MTW+PTW)-1:0] min_slot_data;
+    always_comb begin
+        case (min_val_idx)
+            2'b00: min_slot_data = slot0[(MTW+PTW)-1:0];
+            2'b01: min_slot_data = slot1[(MTW+PTW)-1:0];
+            2'b10: min_slot_data = slot2[(MTW+PTW)-1:0];
+            2'b11: min_slot_data = slot3[(MTW+PTW)-1:0];
+        endcase
+    end
+
+    // o_best_data for external use
+    assign o_best_data = (sec_valid && (sec_data[PTW-1:0] < min_slot_data[PTW-1:0])) ? sec_data : min_slot_data;
 
     // -------------------------------------------------------------------------
     // Sequential Logic: Push, Pop, and Refill
     // -------------------------------------------------------------------------
     always @(posedge i_clk or negedge i_arst_n) begin
         if (~i_arst_n) begin
-            for (integer i=0; i<4; i++) slots[i] <= {{CTW{1'b0}}, {MTW{1'b0}}, {PTW{1'b1}}};
+            slot0 <= {{CTW{1'b0}}, {MTW{1'b0}}, {PTW{1'b1}}};
+            slot1 <= {{CTW{1'b0}}, {MTW{1'b0}}, {PTW{1'b1}}};
+            slot2 <= {{CTW{1'b0}}, {MTW{1'b0}}, {PTW{1'b1}}};
+            slot3 <= {{CTW{1'b0}}, {MTW{1'b0}}, {PTW{1'b1}}};
             sec_data  <= {(MTW+PTW){1'b1}};
             sec_valid <= 1'b0;
             o_pop_data <= 0;
             o_push <= 0;
             o_pop <= 0;
+            o_push_data <= 0;
         end else begin
-            // Default: clear signals
+            // Default signals
             o_push <= 0;
             o_pop <= 0;
 
             case ({i_push, i_pop})
                 2'b10: begin // PUSH ONLY
-                    // Logic: Swap incoming with target slot if incoming is smaller
-                    if (incoming_data[PTW-1:0] < slots[min_load_idx][PTW-1:0]) begin
-                        slots[min_load_idx] <= {slots[min_load_idx][(CTW+MTW+PTW)-1:(MTW+PTW)] + 1'b1, incoming_data};
-                        o_push[min_load_idx] <= 1'b1;
-                        o_push_data <= slots[min_load_idx][(MTW+PTW)-1:0];
-                    end else begin
-                        slots[min_load_idx][(CTW+MTW+PTW)-1:(MTW+PTW)] <= slots[min_load_idx][(CTW+MTW+PTW)-1:(MTW+PTW)] + 1'b1;
-                        o_push[min_load_idx] <= 1'b1;
-                        o_push_data <= incoming_data;
-                    end
+                    case (min_load_idx)
+                        2'b00: begin
+                            if (incoming_data[PTW-1:0] < slot0[PTW-1:0]) begin
+                                slot0 <= {slot0[(CTW+MTW+PTW)-1:(MTW+PTW)] + 1'b1, incoming_data};
+                                o_push_data <= slot0[(MTW+PTW)-1:0];
+                            end else begin
+                                slot0[(CTW+MTW+PTW)-1:(MTW+PTW)] <= slot0[(CTW+MTW+PTW)-1:(MTW+PTW)] + 1'b1;
+                                o_push_data <= incoming_data;
+                            end
+                            o_push <= 4'b0001;
+                        end
+                        2'b01: begin
+                            if (incoming_data[PTW-1:0] < slot1[PTW-1:0]) begin
+                                slot1 <= {slot1[(CTW+MTW+PTW)-1:(MTW+PTW)] + 1'b1, incoming_data};
+                                o_push_data <= slot1[(MTW+PTW)-1:0];
+                            end else begin
+                                slot1[(CTW+MTW+PTW)-1:(MTW+PTW)] <= slot1[(CTW+MTW+PTW)-1:(MTW+PTW)] + 1'b1;
+                                o_push_data <= incoming_data;
+                            end
+                            o_push <= 4'b0010;
+                        end
+                        2'b10: begin
+                            if (incoming_data[PTW-1:0] < slot2[PTW-1:0]) begin
+                                slot2 <= {slot2[(CTW+MTW+PTW)-1:(MTW+PTW)] + 1'b1, incoming_data};
+                                o_push_data <= slot2[(MTW+PTW)-1:0];
+                            end else begin
+                                slot2[(CTW+MTW+PTW)-1:(MTW+PTW)] <= slot2[(CTW+MTW+PTW)-1:(MTW+PTW)] + 1'b1;
+                                o_push_data <= incoming_data;
+                            end
+                            o_push <= 4'b0100;
+                        end
+                        2'b11: begin
+                            if (incoming_data[PTW-1:0] < slot3[PTW-1:0]) begin
+                                slot3 <= {slot3[(CTW+MTW+PTW)-1:(MTW+PTW)] + 1'b1, incoming_data};
+                                o_push_data <= slot3[(MTW+PTW)-1:0];
+                            end else begin
+                                slot3[(CTW+MTW+PTW)-1:(MTW+PTW)] <= slot3[(CTW+MTW+PTW)-1:(MTW+PTW)] + 1'b1;
+                                o_push_data <= incoming_data;
+                            end
+                            o_push <= 4'b1000;
+                        end
+                    endcase
                 end
 
                 2'b01: begin // POP ONLY
-                    // Logic: Use SEC if it's better, else use min_val_idx
-                    if (sec_valid && (sec_data[PTW-1:0] < slots[min_val_idx][PTW-1:0])) begin
+                    if (sec_valid && (sec_data[PTW-1:0] < min_slot_data[PTW-1:0])) begin
                         o_pop_data <= sec_data;
-                        sec_valid <= 1'b0; // SEC consumed
-                        // Trigger async refill from child with most potential? 
-                        // Simplification: always try to refill SEC from a child
-                        o_pop[min_val_idx] <= 1'b1; 
+                        sec_valid <= 1'b0;
+                        o_pop[min_val_idx] <= 1'b1;
                     end else begin
-                        o_pop_data <= slots[min_val_idx][(MTW+PTW)-1:0];
-                        // Replace slot with data from its child
-                        slots[min_val_idx] <= {slots[min_val_idx][(CTW+MTW+PTW)-1:(MTW+PTW)] - 1'b1, 
-                                               i_pop_data[min_val_idx*(MTW+PTW) +: (MTW+PTW)]};
+                        o_pop_data <= min_slot_data;
+                        case (min_val_idx)
+                            2'b00: slot0 <= {slot0[(CTW+MTW+PTW)-1:(MTW+PTW)] - 1'b1, i_pop_data[0*(MTW+PTW) +: (MTW+PTW)]};
+                            2'b01: slot1 <= {slot1[(CTW+MTW+PTW)-1:(MTW+PTW)] - 1'b1, i_pop_data[1*(MTW+PTW) +: (MTW+PTW)]};
+                            2'b10: slot2 <= {slot2[(CTW+MTW+PTW)-1:(MTW+PTW)] - 1'b1, i_pop_data[2*(MTW+PTW) +: (MTW+PTW)]};
+                            2'b11: slot3 <= {slot3[(CTW+MTW+PTW)-1:(MTW+PTW)] - 1'b1, i_pop_data[3*(MTW+PTW) +: (MTW+PTW)]};
+                        endcase
                         o_pop[min_val_idx] <= 1'b1;
                     end
                 end
 
-                2'b11: begin // CONCURRENT PUSH & POP (Astra Special)
-                    // High-speed bypass: if incoming is the absolute best, just give it to parent
+                2'b11: begin // CONCURRENT PUSH-POP (SWAP)
                     if (incoming_data[PTW-1:0] < o_best_data[PTW-1:0]) begin
                         o_pop_data <= incoming_data;
-                        // Tree state remains unchanged
                     end else begin
-                        // Standard Pop logic + Background Push logic
                         o_pop_data <= o_best_data;
-                        // Implementation of simultaneous swap... (omitted for brevity in prototype)
+                        if (sec_valid && (sec_data[PTW-1:0] < min_slot_data[PTW-1:0])) begin
+                            sec_data <= incoming_data;
+                        end else begin
+                            case (min_val_idx)
+                                2'b00: slot0[(MTW+PTW)-1:0] <= incoming_data;
+                                2'b01: slot1[(MTW+PTW)-1:0] <= incoming_data;
+                                2'b10: slot2[(MTW+PTW)-1:0] <= incoming_data;
+                                2'b11: slot3[(MTW+PTW)-1:0] <= incoming_data;
+                            endcase
+                        end
                     end
                 end
                 
                 default: begin
                     // Idle: Try to refill SEC if invalid
                     if (!sec_valid) begin
-                        // Pre-fetch from children logic could go here
+                        // Pre-fetch logic could go here
                     end
                 end
             endcase
         end
     end
 
-    assign o_ready = 1'b1; // Simplified for this prototype
+    assign o_ready = 1'b1;
 
 endmodule

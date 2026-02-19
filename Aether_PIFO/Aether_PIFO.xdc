@@ -8,8 +8,12 @@ create_clock -period 4.000 -name clk [get_ports i_clk]
 set_clock_uncertainty 0.100 [get_clocks clk]
 
 # Input/Output Delays (Assuming 2ns for generic interface)
-set_input_delay -clock clk 2.000 [all_inputs]
+# Exclude the clock port from all_inputs to avoid warnings on the clock itself
+set_input_delay -clock clk 2.000 [remove_from_collection [all_inputs] [get_ports i_clk]]
 set_output_delay -clock clk 2.000 [all_outputs]
+
+# Explicitly ensure i_arst_n is covered if all_inputs has issues in some versions
+set_input_delay -clock clk 2.000 [get_ports i_arst_n]
 
 # Optimization Properties for Vivado 2023.2
 # Enable register retiming to balance logic levels across node boundaries

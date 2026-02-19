@@ -43,9 +43,9 @@ module Aether_PIFO_Top #(
     wire [(MTW+PTW)-1:0]      n_pop_out [0:NODES-1];
 
     // Node Input Buffers (To break critical paths between levels)
-    reg [NODES-1:0]           n_valid_r;
-    reg [NODES-1:0]           n_op_r;
-    reg [(MTW+PTW)-1:0]       n_data_r [0:NODES-1];
+    reg                       n_valid_r [0:NODES-1];
+    reg                       n_op_r    [0:NODES-1];
+    reg [(MTW+PTW)-1:0]       n_data_r  [0:NODES-1];
 
     generate
         for (genvar i=0; i<NODES; i++) begin : gen_nodes
@@ -68,20 +68,27 @@ module Aether_PIFO_Top #(
 
             // Level-to-Level Registering (Systolic Architecture)
             // This ensures Fmax is independent of tree depth
-            always @(posedge i_clk or negedge i_arst_n) begin
-                if (~i_arst_n) begin
-                    n_valid_r[i] <= 0;
-                end else begin
-                    if (i == 0) begin
-                        // Root Connection
+            if (i == 0) begin : gen_root
+                always @(posedge i_clk or negedge i_arst_n) begin
+                    if (~i_arst_n) begin
+                        n_valid_r[0] <= 1'b0;
+                        n_op_r[0]    <= 1'b0;
+                        n_data_r[0]  <= {(MTW+PTW){1'b0}};
+                    end else begin
                         n_valid_r[0] <= (i_push | i_pop);
                         n_op_r[0]    <= i_pop;
                         n_data_r[0]  <= i_data;
+                    end
+                end
+            end else begin : gen_child
+                localparam integer P_IDX = (i-1)/4;
+                localparam integer C_POS = (i-1)%4;
+                always @(posedge i_clk or negedge i_arst_n) begin
+                    if (~i_arst_n) begin
+                        n_valid_r[i] <= 1'b0;
+                        n_op_r[i]    <= 1'b0;
+                        n_data_r[i]  <= {(MTW+PTW){1'b0}};
                     end else begin
-                        // Parent to Child Connection
-                        // Find parent: parent_idx = (i-1)/4
-                        localparam P_IDX = (i-1)/4;
-                        localparam C_POS = (i-1)%4;
                         n_valid_r[i] <= n_valid[P_IDX] && n_mask[P_IDX][C_POS];
                         n_op_r[i]    <= n_op[P_IDX];
                         n_data_r[i]  <= n_data[P_IDX];

@@ -296,9 +296,9 @@ always @ * begin
         fwd_read_data[2*(CTW+MTW+PTW)-1:2*(MTW+PTW)+CTW] <= fwd_read_data[3*(CTW+MTW+PTW)-1:3*(MTW+PTW)+2*CTW] &&
         fwd_read_data[2*(CTW+MTW+PTW)-1:2*(MTW+PTW)+CTW] <= fwd_read_data[4*(CTW+MTW+PTW)-1:4*(MTW+PTW)+3*CTW])
         min_sub_tree = 2'b01;
-    else if (fwd_read_data[3*(CTW+MTW+PTW)-1:3*(CTW+MTW+PTW)+2*CTW] <= fwd_read_data[(CTW+MTW+PTW)-1:(MTW+PTW)] &&
-        fwd_read_data[3*(CTW+MTW+PTW)-1:3*(CTW+MTW+PTW)+2*CTW] <= fwd_read_data[2*(CTW+MTW+PTW)-1:2*(MTW+PTW)+CTW] &&
-        fwd_read_data[3*(CTW+MTW+PTW)-1:3*(CTW+MTW+PTW)+2*CTW] <= fwd_read_data[4*(CTW+MTW+PTW)-1:4*(MTW+PTW)+3*CTW])
+    else if (fwd_read_data[3*(CTW+MTW+PTW)-1:3*(MTW+PTW)+2*CTW] <= fwd_read_data[(CTW+MTW+PTW)-1:(MTW+PTW)] &&
+        fwd_read_data[3*(CTW+MTW+PTW)-1:3*(MTW+PTW)+2*CTW] <= fwd_read_data[2*(CTW+MTW+PTW)-1:2*(MTW+PTW)+CTW] &&
+        fwd_read_data[3*(CTW+MTW+PTW)-1:3*(MTW+PTW)+2*CTW] <= fwd_read_data[4*(CTW+MTW+PTW)-1:4*(MTW+PTW)+3*CTW])
         min_sub_tree = 2'b10;
     else
         min_sub_tree = 2'b11;

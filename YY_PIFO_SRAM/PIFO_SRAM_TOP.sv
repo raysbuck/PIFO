@@ -69,43 +69,20 @@ end
 end
 endfunction
 
-function integer addr_idx_high;
+function automatic integer addr_idx_high;
 input integer pifo_level;
-integer i,j,k;
 begin
-   j=0;
-   k=0;
-   for (i=0;i<pifo_level;i=i+1) begin
-      if (i==0) begin
-         k=0;
-	   end else begin
-	     k=$clog2(4**i);
-	   end
-	   j=j+k;
-   end
-   addr_idx_high = j;
+   addr_idx_high = pifo_level * (pifo_level - 1);
 end
 endfunction
 
-function integer addr_idx_low;
+function automatic integer addr_idx_low;
 input integer pifo_level;
-integer i,j,k;
 begin
-   j=0;
-   k=0;
-   for (i=0;i<pifo_level;i=i+1) begin
-      if (i==0) begin
-         k=0;
-	  end else begin
-	     k=$clog2(4**(i-1));
-	  end
-	  j=j+k;
-   end
-   if (pifo_level == 1) begin
+   if (pifo_level == 1)
       addr_idx_low = 0;
-   end else begin
-      addr_idx_low = j+1;
-   end
+   else
+      addr_idx_low = (pifo_level - 1) * (pifo_level - 2) + 1;
 end
 endfunction
 
@@ -147,12 +124,10 @@ endfunction
    wire [ADW-1:0]                child_addr   [0:LEVEL-1];
 
        
-   integer test=1;
-   integer result;   
 //-----------------------------------------------------------------------------
 // Instantiations
 //-----------------------------------------------------------------------------
-genvar i,j;
+genvar i;
 generate
    for (i=0;i<LEVEL;i=i+1) begin : pifo_loop
          PIFO_SRAM #(
@@ -198,7 +173,7 @@ generate
       assign push_data_up[i]       = push_data_dn[i-1];
       assign pop_up[i]             = pop_dn[i-1];
       assign pop_data_dn[i-1]      = pop_data_up[i];
-      assign my_addr[i]            = child_addr[i - 1];
+      assign my_addr[i]            = child_addr[i-1];
    end   
    assign pop_data_dn[LEVEL - 1] = {(MTW+PTW){1'b1}};
    
@@ -238,7 +213,7 @@ generate
 
       INFER_SDPRAM #( 
 	      .DATA_WIDTH ( 4*(CTW+MTW+PTW)                  ), 
-         .ADDR_WIDTH ( 2                         ), 
+         .ADDR_WIDTH ( 1                         ), 
          .ARCH       ( 0                            ), 
          .RDW_MODE   ( 1                            ),
          .INIT_VALUE ( {4{{CTW{1'b0}},{(MTW+PTW){1'b1}}}} ) // Sub-tree size is zero. Pifo value are maximum initially.		 
@@ -258,11 +233,11 @@ generate
 
       assign re[0]    = read[0];
       assign we[0]    = write[0];
-      assign waddr[addr_idx_high(2):addr_idx_low(2)] = write_addr[0];
-      assign raddr[addr_idx_high(2):addr_idx_low(2)] = read_addr[0];	       
+      assign waddr[addr_idx_high(1):addr_idx_low(1)] = write_addr[0];
+      assign raddr[addr_idx_high(1):addr_idx_low(1)] = read_addr[0];	       
       assign wdata[0] = write_data[0];
    
-   for (i=0;i<LEVEL;i=i+1) begin : loop
+   for (i=0;i<LEVEL;i=i+1) begin : loop_data
          assign read_data[i] = rdata[i];
    end
 

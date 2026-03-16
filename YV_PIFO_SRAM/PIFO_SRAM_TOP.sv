@@ -8,11 +8,8 @@ Author: Xiaoguang Li
 Date  : 06/16/2019
 
 Description: Top-level module that contains n levels (n is parameterizable) 
-             of PIFO components (In this version, PIFO storage elements are
-			 SRAM instead of FFs. This makes the whole PIFO tree more expandable.). 
+             of PIFO components.
 			 
-Issues:  
-
 -----------------------------------------------------------------------------*/
 
 //-----------------------------------------------------------------------------
@@ -37,37 +34,10 @@ module PIFO_SRAM_TOP
    input               i_pop,
    output [(MTW+PTW)-1:0]    o_pop_data      
 );
-//-----------------------------------------------------------------------------
-// Include Files
-//-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Parameters
+// Functions
 //-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
-// Functions and Tasks
-//-----------------------------------------------------------------------------
-
-
-function integer find_level;
-input integer a;
-integer i,j,k;
-begin
-k=0;
-find_level=0;
-for (i=0;i<LEVEL;i=i+1) begin
-   for (j=0;j<4**i;j=j+1) begin
-      if (a==k) begin
-		 find_level = i;
-      end else begin
-		 find_level = find_level;
-      end
-      k=k+1;     
-   end
-end
-end
-endfunction
 
 function integer addr_idx_high;
 input integer pifo_level;
@@ -109,8 +79,10 @@ begin
 end
 endfunction
 
-
-
+//-----------------------------------------------------------------------------
+// Parameters
+//-----------------------------------------------------------------------------
+localparam EW = CTW + MTW + PTW + 2;
 
 //-----------------------------------------------------------------------------
 // Register and Wire Declarations
@@ -119,40 +91,34 @@ endfunction
    wire [LEVEL-1:0]    push_up;
    wire [(MTW+PTW)-1:0]                push_data_up [0:LEVEL-1];
    wire [LEVEL-1:0]    pop_up;
-   wire [(MTW+PTW)-1:0]                pop_data_up  [0:LEVEL-1];
+   wire [(MTW+PTW)+2-1:0]              pop_data_up  [0:LEVEL-1];
    wire                          push_dn      [0:LEVEL-1];
    wire [(MTW+PTW)-1:0]                push_data_dn [0:LEVEL-1];
    wire                          pop_dn       [0:LEVEL-1];
-   wire [(MTW+PTW)-1:0]                pop_data_dn  [0:LEVEL-1];
+   wire [(MTW+PTW)+2-1:0]              pop_data_dn  [0:LEVEL-1];
    
-   wire [LEVEL - 1:0]            read;
-   wire [LEVEL - 1:0]            write;
-   wire [4*(CTW+MTW+PTW)-1:0]        read_data    [0:LEVEL - 1];
-   wire [4*(CTW+MTW+PTW)-1:0]        write_data   [0:LEVEL - 1];   
-   
-   wire [LEVEL-1:0]              we;
-   wire [addr_idx_high(LEVEL):0] waddr;
-   wire [4*(CTW+MTW+PTW)-1:0]        wdata        [0:LEVEL-1];
-      
-   wire [LEVEL-1:0]              re;
-   wire [addr_idx_high(LEVEL):0] raddr;
-   wire [4*(CTW+MTW+PTW)-1:0]        rdata        [0:LEVEL-1];   
+   wire [LEVEL - 1:0]            read_1, read_2;
+   wire [LEVEL - 1:0]            write_1, write_2;
+   wire [4*EW-1:0]               read_data_1 [0:LEVEL - 1];
+   wire [4*EW-1:0]               read_data_2 [0:LEVEL - 1];
+   wire [4*EW-1:0]               write_data_1 [0:LEVEL - 1];
+   wire [4*EW-1:0]               write_data_2 [0:LEVEL - 1];   
 
-
-   wire [ADW-1:0]                read_addr    [0:LEVEL-1];
-   wire [ADW-1:0]                write_addr    [0:LEVEL-1];
-   
+   wire [ADW-1:0]                read_addr_1 [0:LEVEL-1];
+   wire [ADW-1:0]                read_addr_2 [0:LEVEL-1];
+   wire [ADW-1:0]                write_addr_1 [0:LEVEL-1];
+   wire [ADW-1:0]                write_addr_2 [0:LEVEL-1];
    
    wire [ADW-1:0]                my_addr    [0:LEVEL-1];
    wire [ADW-1:0]                child_addr   [0:LEVEL-1];
 
-       
-   integer test=1;
-   integer result;   
+   // Flattened address signals for SDPRAM instances
+   wire [addr_idx_high(LEVEL):0] waddr_1, waddr_2, raddr_1, raddr_2;
+
 //-----------------------------------------------------------------------------
 // Instantiations
 //-----------------------------------------------------------------------------
-genvar i,j;
+genvar i;
 generate
    for (i=0;i<LEVEL;i=i+1) begin : pifo_loop
          PIFO_SRAM #(
@@ -174,23 +140,29 @@ generate
             .o_pop           ( pop_dn       [i] ),
             .i_pop_data      ( pop_data_dn  [i] ),
 			
-            .o_read          ( read         [i] ), 
-            .i_read_data     ( read_data    [i] ), 
-   
-            .o_write         ( write        [i] ), 
-            .o_write_data    ( write_data   [i] ),
+            .o_read_1        ( read_1       [i] ), 
+            .i_read_data_1   ( read_data_1  [i] ), 
+            .o_write_1       ( write_1      [i] ), 
+            .o_write_data_1  ( write_data_1 [i] ),
+            .o_read_addr_1   ( read_addr_1  [i] ),
+            .o_write_addr_1  ( write_addr_1 [i] ),
+
+            .o_read_2        ( read_2       [i] ), 
+            .i_read_data_2   ( read_data_2  [i] ), 
+            .o_write_2       ( write_2      [i] ), 
+            .o_write_data_2  ( write_data_2 [i] ),
+            .o_read_addr_2   ( read_addr_2  [i] ),
+            .o_write_addr_2  ( write_addr_2 [i] ),
 
             .i_my_addr       ( my_addr      [i] ),
-            .o_child_addr    ( child_addr   [i] ),
-            .o_read_addr     ( read_addr    [i] ),
-            .o_write_addr    ( write_addr    [i] )		
+            .o_child_addr    ( child_addr   [i] )
          );
    end
    
    assign push_up[0]            = i_push;
    assign push_data_up[0]       = i_push_data;
    assign pop_up[0]             = i_pop;
-   assign o_pop_data            = pop_data_up[0];
+   assign o_pop_data            = pop_data_up[0][(MTW+PTW)+2-1:2]; // Strip source port for top output
    assign my_addr[0]            = 1'b0;
 
    for (i=1;i<LEVEL;i=i+1) begin : loop1
@@ -200,88 +172,50 @@ generate
       assign pop_data_dn[i-1]      = pop_data_up[i];
       assign my_addr[i]            = child_addr[i - 1];
    end   
-   assign pop_data_dn[LEVEL - 1] = {(MTW+PTW){1'b1}};
-   
+   assign pop_data_dn[LEVEL - 1] = {((MTW+PTW)+2){1'b1}};
 
-
-
-
-   
-   for (i=1; i<LEVEL; i=i+1) begin : sram_inst
+   // --- SRAM 1 Instantiations ---
+   for (i=0; i<LEVEL; i=i+1) begin : sram1_inst
       INFER_SDPRAM #( 
-	      .DATA_WIDTH ( 4*(CTW+MTW+PTW)                  ), 
-         .ADDR_WIDTH ( 2 * i                         ), 
-         .ARCH       ( 0                            ), 
-         .RDW_MODE   ( 1                            ),
-         .INIT_VALUE ( {4{{CTW{1'b0}},{(MTW+PTW){1'b1}}}} ) // Sub-tree size is zero. Pifo value are maximum initially.		 
-	  ) u_INFER_SDPRAM 
+	      .DATA_WIDTH ( 4*EW                             ), 
+         .ADDR_WIDTH ( (i==0) ? 2 : 2 * i               ), 
+         .ARCH       ( 0                                ), 
+         .RDW_MODE   ( 1                                ),
+         .INIT_VALUE ( {4{{CTW{1'b0}},{(MTW+PTW){1'b1}},2'b00}} )
+	  ) u_SDPRAM1
 	  (
          .i_clk      ( i_clk                                   ),     
          .i_arst_n   ( i_arst_n                                ),  
-
-         .i_we       ( we[i]                                   ), 
-         .i_waddr    ( waddr[addr_idx_high(i+1):addr_idx_low(i+1)] ),    //地址宽度
-         .i_wdata    ( wdata[i]                                ), 
-
-         .i_re       ( re[i]                                   ),                                        
-         .i_raddr    ( raddr[addr_idx_high(i+1):addr_idx_low(i+1)] ),    
-         .o_rdata    ( rdata[i]                                ) 
+         .i_we       ( write_1[i]                              ), 
+         .i_waddr    ( write_addr_1[i][((i==0)?2:2*i)-1:0]     ), 
+         .i_wdata    ( write_data_1[i]                         ), 
+         .i_re       ( read_1[i]                               ),                                        
+         .i_raddr    ( read_addr_1[i][((i==0)?2:2*i)-1:0]      ),    
+         .o_rdata    ( read_data_1[i]                          ) 
       );  
-
-      assign re[i]    = read[i];
-      assign we[i]    = write[i];
-      assign waddr[addr_idx_high(i+1):addr_idx_low(i+1)] = write_addr[i];
-      assign raddr[addr_idx_high(i+1):addr_idx_low(i+1)] = read_addr[i];	       
-      assign wdata[i] = write_data[i];
-   end     
-
-
-      INFER_SDPRAM #( 
-	      .DATA_WIDTH ( 4*(CTW+MTW+PTW)                  ), 
-         .ADDR_WIDTH ( 2                         ), 
-         .ARCH       ( 0                            ), 
-         .RDW_MODE   ( 1                            ),
-         .INIT_VALUE ( {4{{CTW{1'b0}},{(MTW+PTW){1'b1}}}} ) // Sub-tree size is zero. Pifo value are maximum initially.		 
-	  ) SDPRAM0
-	  (
-         .i_clk      ( i_clk                                   ),     
-         .i_arst_n   ( i_arst_n                                ),  
-
-         .i_we       ( we[0]                                   ), 
-         .i_waddr    ( waddr[addr_idx_high(1):addr_idx_low(1)] ),    //地址宽度
-         .i_wdata    ( wdata[0]                                ), 
-
-         .i_re       ( re[0]                                   ),                                        
-         .i_raddr    ( raddr[addr_idx_high(1):addr_idx_low(1)] ),    
-         .o_rdata    ( rdata[0]                                ) 
-      );  
-
-      assign re[0]    = read[0];
-      assign we[0]    = write[0];
-      assign waddr[addr_idx_high(2):addr_idx_low(2)] = write_addr[0];
-      assign raddr[addr_idx_high(2):addr_idx_low(2)] = read_addr[0];	       
-      assign wdata[0] = write_data[0];
-   
-   for (i=0;i<LEVEL;i=i+1) begin : loop
-         assign read_data[i] = rdata[i];
    end
 
-
-
+   // --- SRAM 2 Instantiations ---
+   for (i=0; i<LEVEL; i=i+1) begin : sram2_inst
+      INFER_SDPRAM #( 
+	      .DATA_WIDTH ( 4*EW                             ), 
+         .ADDR_WIDTH ( (i==0) ? 2 : 2 * i               ), 
+         .ARCH       ( 0                                ), 
+         .RDW_MODE   ( 1                                ),
+         .INIT_VALUE ( {4{{CTW{1'b0}},{(MTW+PTW){1'b1}},2'b00}} )
+	  ) u_SDPRAM2
+	  (
+         .i_clk      ( i_clk                                   ),     
+         .i_arst_n   ( i_arst_n                                ),  
+         .i_we       ( write_2[i]                              ), 
+         .i_waddr    ( write_addr_2[i][((i==0)?2:2*i)-1:0]     ), 
+         .i_wdata    ( write_data_2[i]                         ), 
+         .i_re       ( read_2[i]                               ),                                        
+         .i_raddr    ( read_addr_2[i][((i==0)?2:2*i)-1:0]      ),    
+         .o_rdata    ( read_data_2[i]                          ) 
+      );  
+   end
 
 endgenerate
-
-//-----------------------------------------------------------------------------
-// Sequential Logic
-//-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
-// Combinatorial Logic / Continuous Assignments
-//-----------------------------------------------------------------------------
-//assign result = test%(4**(find_level(test)-1))-1;
-
-//-----------------------------------------------------------------------------
-// Output Assignments
-//-----------------------------------------------------------------------------
 
 endmodule
